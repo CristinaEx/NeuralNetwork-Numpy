@@ -1,5 +1,5 @@
 import numpy
-from conv import conv2d
+from conv import conv2d,deconv2d
 from math import floor,ceil
 
 class MainNet:
@@ -68,17 +68,20 @@ class Net:
         self.strides.append(strides)
         self.conv_layout.append(layout)
 
-    def __sigmoid(self,value):
+    def __sigmoid(self,x):
         """
         sigmoid
+        return y = 1/(1+exp(-x))
         """
-        return 1/(1+numpy.exp(-value))
+        return 1/(1+numpy.exp(-x))
 
-    def __sigmoid_loss(self,value):
+    def __sigmoid_loss(self,y):
         """
+        y = 1/(1+exp(-x))
         sigmoid 导数
+        返回dy/dx
         """
-        return self.__sigmoid(value)*(1-self.__sigmoid(value))
+        return y*(1-y)
 
     def load(self,fileName):
         """
@@ -101,6 +104,8 @@ class Net:
         """
         self.count() # 更新权值
         if regress_type == 'SGD':
+            now_layout = self.conv_layout[-1] # 当前layout
+            loss = now_layout-label # label = now_layout - loss
             for i in range(1,len(self.conv_layout)+1):
                 now_layout = self.conv_layout[-i] # 当前layout
                 if i == len(self.conv_layout):
@@ -110,10 +115,9 @@ class Net:
                 batch_size,h,w,channel = last_layout.shape
                 fh,fw,channel_in,channel_out = self.conv_filter[-i].shape # 当前filter
                 # true_layout = st_func^(-1)(label)
-                loss = now_layout-label # label = now_layout - loss
                 # 经过激活函数传播loss
                 if self.st_func[-i] == 'SIGMOID':
-                    loss = loss/self.__sigmoid_loss(now_layout) # dx = ds/(dS/dx)
+                    loss = loss*self.__sigmoid_loss(now_layout)
                 # 进行随机梯度下降更新权值
                 data = last_layout
                 if self.padding[-i] == 'SAME':
@@ -137,17 +141,17 @@ class Net:
                 Kf = Kb/filter_size
                 for b in range(batch_size):
                     for j in range(SGD_NUM):
-                        x = x0[j]
-                        y = y0[j]
+                        x = x0[j]*self.strides[-i][0]
+                        y = y0[j]*self.strides[-i][0]
                         for ch in range(channel_out):
                             filter_loss[:,:,:,ch] = filter_loss[:,:,:,ch] + loss[b,x,y,ch] * data[b,x:x+fh,y:y+fw,:]*Kf
                             if bias:
                                 bias_loss[ch] = loss[b,x,y,ch]*Kb
-                # filter_new为更新后的卷积算子权值
+                loss = deconv2d(loss,self.conv_filter[-i],self.strides[-i],self.padding[-i]) # 更新loss
+                # 更新后的卷积算子权值
                 self.conv_filter[-i] = self.conv_filter[-i] - filter_loss
                 if bias:
                     self.conv_bias[-i] = self.conv_bias[-i] - bias_loss
-                label = last_layout # label更改为上一层应该的输出
 
     def count(self):
         """
