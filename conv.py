@@ -25,27 +25,37 @@ def conv2d(data,filter,strides=[1,1],padding='SAME'):
         result = result0[:,0:h,0:w,:]
     return result
 
-def deconv2d(data,filter,strides=[1,1],padding='SAME'):
+def deconv2d(loss,filter,strides=[1,1],padding='SAME'):
     """
     反卷积
+    计算loss传播
+    目前仅支持步长为1
     """
-    batch_size,h,w,channel = data.shape
+    batch_size,h,w,channel = loss.shape
     fh,fw,channel_in,channel_out = filter.shape
+    new_filter = filter.transpose(0,1,3,2) # output_channel转换
+    new_filter = numpy.flip(new_filter,0)
+    new_filter = numpy.flip(new_filter,1) # 算子上下左右翻转
     if padding == 'VAILD':
-        result = numpy.zeros((batch_size,ceil((h-1)*strides[0]+fh),ceil((w-1)*strides[1]+fw),channel_in))
+        data0 = numpy.pad(loss,((0,0),(fh-1,fh-1),(fw-1,fw-1),(0,0)),'constant')
     else:
-        result = numpy.zeros((batch_size,h,w,channel_in))
-    return result
-                
-        
-    return result
+        data0 = numpy.pad(loss,((0,0),(floor(fh/2),floor(fh/2)),(floor(fw/2),floor(fw/2)),(0,0)),'constant')
+    return conv2d(data0,new_filter,strides,'VAILD')
 
 if __name__ == '__main__':
-    A = numpy.ones((1,5,5,1))
-    B = numpy.ones((3,3,1,2))
-    C = conv2d(A,B,[1,1],'VAILD')
-    D = conv2d(A,B,[1,1],'SAME')
-    print(C[0,:,:,0])
-    print(D[0,:,:,0])
-    print(deconv2d(C,B,[1,1],'VAILD')[0,:,:,0])
-    print(deconv2d(D,B,[1,1],'SAME')[0,:,:,0])
+    A = numpy.array(
+        [
+            [[[3]],[[4]]],
+            [[[5]],[[6]]]
+        ]
+    )
+    B = numpy.array(
+        [
+            [[[-1]],[[1]]],
+            [[[2]],[[-2]]]
+        ]
+    )
+    B = numpy.reshape(B,[1,2,2,1])
+    print(A.shape)
+    print(B.shape)
+    print(deconv2d(B,A,padding='VAILD')[0,:,:,0])

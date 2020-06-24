@@ -1,6 +1,8 @@
 import numpy
 from conv import conv2d,deconv2d
 from math import floor,ceil
+from os import mkdir
+from os.path import isdir,dirname,isfile
 
 class MainNet:
     def __init__(self,net):
@@ -25,7 +27,7 @@ class Net:
         self.st_func = [] # 每层网络对应激活函数
         self.padding = [] # 每层网络对应padding方式
         self.strides = [] # 每层网络卷积核对应步长
-        pass
+        
 
     def addData(self,data):
         """
@@ -44,29 +46,29 @@ class Net:
         st_func:激活函数 NONE(√) SIGMOID(√) RELU LEAKY_RELU_(alpha值) TANH
         """ 
         if bias == None:
-            self.conv_bias.append([])
+            self.conv_bias.append(numpy.array([]))
         if init_type == 'ZERO':
             self.conv_filter.append(numpy.zeros(filter_shape))
             if not bias == None:
                 self.conv_bias.append(numpy.zeros(filter_shape[3]))
         else:
-            self.conv_filter.append(numpy.random.standard_normal(filter_shape)/(filter_shape[0]*filter_shape[1]*filter_shape[2]))
+            self.conv_filter.append(numpy.random.standard_normal(filter_shape)/(filter_shape[0]*filter_shape[1]))
             if not bias == None:
                 self.conv_bias.append(numpy.random.standard_normal(filter_shape[3]))
-        if self.conv_layout:
-            data = self.conv_layout[-1]
-        else:
-            data = self.data
-        layout = conv2d(data,self.conv_filter[-1],strides,padding)
-        if not bias == None:
-            for channel in range(filter_shape[3]):
-                layout[:,:,:,channel] += self.conv_bias[-1][channel]
-        if st_func == 'SIGMOID':
-            layout = self.__sigmoid(layout)
+        # if self.conv_layout:
+        #     data = self.conv_layout[-1]
+        # else:
+        #     data = self.data
+        # layout = conv2d(data,self.conv_filter[-1],strides,padding)
+        # if not bias == None:
+        #     for channel in range(filter_shape[3]):
+        #         layout[:,:,:,channel] += self.conv_bias[-1][channel]
+        # if st_func == 'SIGMOID':
+        #     layout = self.__sigmoid(layout)
         self.st_func.append(st_func)
         self.padding.append(padding)
         self.strides.append(strides)
-        self.conv_layout.append(layout)
+        self.conv_layout.append(None)
 
     def __sigmoid(self,x):
         """
@@ -74,6 +76,12 @@ class Net:
         return y = 1/(1+exp(-x))
         """
         return 1/(1+numpy.exp(-x))
+
+    def __leakyRelu(self,x,alpha):
+        """
+        leaky relu = (x<0)*alpha+(x>0)*1
+        """
+        return ((x<0)*alpha+(x>0))*x
 
     def __sigmoid_loss(self,y):
         """
@@ -83,29 +91,72 @@ class Net:
         """
         return y*(1-y)
 
+    def __leakyRelu_loss(self,y,alpha):
+        return (y<0)*alpha+(y>=0)
+
     def load(self,fileName):
         """
         读取
         """
-        pass
+        if not isfile(fileName):
+            return False
+        self.__init__() # 初始化
+        with open(fileName) as f:
+            layout_num = int(f.readline())
+            for i in range(layout_num):
+                filter_size = [int(x) for x in list(f.readline()[1:-2].split(','))]
+                b = False
+                if len(list(f.readline())) >= 2:
+                    b = True
+                strides = [int(x) for x in list(f.readline()[1:-2].split(','))]
+                padding = f.readline()[0:-1]
+                st_func = f.readline()[0:-1]
+                self.addConvLayout(filter_size,bias = b,strides = strides,padding = padding,st_func = st_func)
+        for i in range(len(self.conv_filter)):
+            data = numpy.load(dirname(fileName) + '\\layout_'+str(i)+'.npz')
+            self.conv_filter[i]=data['x']
+            self.conv_bias[i]=data['y']
+        return True
 
     def save(self,filename):
         """
         保存
         """
-        pass
+        if not isdir(dirname(filename)):
+            mkdir(dirname(filename))
+        with open(filename,'w+') as f:
+            f.write(str(len(self.conv_filter)))
+            f.write('\n')
+            for i in range(len(self.conv_filter)):
+                f.write(str(self.conv_filter[i].shape))
+                f.write('\n')
+                f.write(str(self.conv_bias[i].shape))
+                f.write('\n')
+                f.write(str(self.strides[i]))
+                f.write('\n')
+                f.write(str(self.padding[i]))
+                f.write('\n')
+                f.write(str(self.st_func[i]))
+                f.write('\n')
+        for i in range(len(self.conv_filter)):
+            numpy.savez(dirname(filename) + '\\layout_'+str(i),x=self.conv_filter[i],y=self.conv_bias[i])
+        return True
 
-    def regress(self,learning_rate,label,regress_type='SGD'):
+    def regress(self,learning_rate,label,regress_type='SGD',loss_type='MSE'):
         """
         后向传播，仅支持随机梯度下降
         learing_rate:学习率
         label:最后一层的标准输出
         权值更新速率正比于learning_rate
+        loss_type:MSE or CE(交叉熵)
         """
         self.count() # 更新权值
         if regress_type == 'SGD':
             now_layout = self.conv_layout[-1] # 当前layout
-            loss = now_layout-label # label = now_layout - loss
+            if loss_type == 'CE':
+                loss = (-label/(now_layout+0.000000001)+(1-label)/(1-now_layout+0.000000001))
+            else:
+                loss = 2*(now_layout-label) # loss = d_loss/d_st_func_out_put
             for i in range(1,len(self.conv_layout)+1):
                 now_layout = self.conv_layout[-i] # 当前layout
                 if i == len(self.conv_layout):
@@ -117,7 +168,11 @@ class Net:
                 # true_layout = st_func^(-1)(label)
                 # 经过激活函数传播loss
                 if self.st_func[-i] == 'SIGMOID':
-                    loss = loss*self.__sigmoid_loss(now_layout)
+                    loss = loss*self.__sigmoid_loss(now_layout)# loss = (d_loss/d_st_func_out_put) * (d_st_func_out_put/d_hidden_output) = d_loss/d_hidden_output
+                elif self.st_func[-i][0:10] == 'LEAKY_RELU':
+                    alpha = float(self.st_func[-i][11:])
+                    loss = loss*self.__leakyRelu_loss(now_layout,alpha)
+                # 注:d_hidden_output/dw = data
                 # 进行随机梯度下降更新权值
                 data = last_layout
                 if self.padding[-i] == 'SAME':
@@ -136,18 +191,17 @@ class Net:
                 [lb,lh,lw,lc] = loss.shape
                 x0 = numpy.random.randint(lh,size=SGD_NUM)
                 y0 = numpy.random.randint(lw,size=SGD_NUM)
-                filter_size = fh*fw*channel_in
-                Kb = learning_rate/SGD_NUM/batch_size
-                Kf = Kb/filter_size
+                K = learning_rate/SGD_NUM/batch_size
                 for b in range(batch_size):
                     for j in range(SGD_NUM):
                         x = x0[j]*self.strides[-i][0]
                         y = y0[j]*self.strides[-i][0]
                         for ch in range(channel_out):
-                            filter_loss[:,:,:,ch] = filter_loss[:,:,:,ch] + loss[b,x,y,ch] * data[b,x:x+fh,y:y+fw,:]*Kf
+                            filter_loss[:,:,:,ch] = filter_loss[:,:,:,ch] + loss[b,x,y,ch] * data[b,x:x+fh,y:y+fw,:]*K
                             if bias:
-                                bias_loss[ch] = loss[b,x,y,ch]*Kb
+                                bias_loss[ch] = loss[b,x,y,ch]*K
                 loss = deconv2d(loss,self.conv_filter[-i],self.strides[-i],self.padding[-i]) # 更新loss
+
                 # 更新后的卷积算子权值
                 self.conv_filter[-i] = self.conv_filter[-i] - filter_loss
                 if bias:
@@ -165,7 +219,10 @@ class Net:
                 for channel in range(filter_shape[3]):
                     layout[:,:,:,channel] += self.conv_bias[i][channel]
             if self.st_func[i] == 'SIGMOID':
-                layout = 1/(1+numpy.exp(-layout));
+                layout = self.__sigmoid(layout);
+            elif self.st_func[i][0:10] == 'LEAKY_RELU':
+                alpha = float(self.st_func[i][11:])
+                layout = self.__leakyRelu(layout,alpha)
             self.conv_layout[i] = layout
             last_layout = layout
         return last_layout
@@ -192,13 +249,14 @@ class Net:
 if __name__ == '__main__':
     net = Net()
     net.addData(numpy.ones([10,28,28,1]))
-    net.addConvLayout([3,3,1,8],bias = None,init_type='RANDOM')
-    net.addConvLayout([3,3,8,16],bias = None,init_type='RANDOM')
-    net.addConvLayout([5,5,16,32],bias = True,init_type='RANDOM')
+    net.addConvLayout([3,3,1,8],bias = None,init_type='RANDOM',st_func='LEAKY_RELU_0.02')
+    net.addConvLayout([3,3,8,16],bias = None,init_type='RANDOM',st_func='LEAKY_RELU_0.02')
+    net.addConvLayout([5,5,16,32],bias = True,init_type='RANDOM',st_func='LEAKY_RELU_0.02')
     net.addConvLayout([28,28,32,10],bias = True,padding='VAILD',st_func='SIGMOID',init_type='RANDOM')
+    net.count()
     print(net)
-    print(net.count()[0,:,:,:])
-    print(net.conv_filter[3][0:10,0,0,0])
+    print(net.conv_filter[0][:,:,0,0])
     net.regress(0.001,numpy.ones(net.count().shape))
-    print(net.count()[0,:,:,:])
-    print(net.conv_filter[3][0:10,0,0,0])
+    print(net.conv_filter[0][:,:,0,0])
+
+    

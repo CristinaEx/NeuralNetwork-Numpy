@@ -25,10 +25,12 @@ net.addConvLayout([1,1,2,1],bias = True,padding='VAILD',st_func='SIGMOID',init_t
 print(net)
 # print(net.count()[:,0,0,0])
 # 学习
-learning_rate = 10
-for i in range(1000): 
+learning_rate = 20
+for i in range(2000): 
     net.regress(learning_rate,y0)
-    print(sum(abs(net.count()[:,0,0,0]-y0[:,0,0,0]))/batch_size)
+    if i % 100 == 0:
+        print(sum(abs(net.count()[:,0,0,0]-y0[:,0,0,0]))/batch_size)
+print(sum(abs(net.count()[:,0,0,0]-y0[:,0,0,0]))/batch_size)
 for i in range(batch_size):
     color = '.r'
     if y0[i] == 0:
