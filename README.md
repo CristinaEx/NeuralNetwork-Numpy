@@ -27,5 +27,6 @@ net.addConvLayout([1,1,2,1],bias = True,padding='VAILD',st_func='SIGMOID',init_t
 ![pic_1](1.JPG)
 
 - print(net) 输出网络结构
+注:输入前需addData()，并count一次
 
 ![pic_2](2.JPG)
