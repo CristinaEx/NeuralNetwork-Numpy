@@ -165,6 +165,7 @@ if __name__ == '__main__':
     # 查看前十个数据及其标签以读取是否正确
     for i in range(10):
         print(train_labels[i])
+        print(train_images[i])
         plt.imshow(train_images[i], cmap='gray')
         plt.pause(0.000001)
         plt.show()

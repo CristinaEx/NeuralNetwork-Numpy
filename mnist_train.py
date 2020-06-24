@@ -77,7 +77,7 @@ def test():
         data = test_images[index]
         data = numpy.reshape(data,[1,28,28,1])
         label = test_labels[index]
-        print('correct result:'+str(label))
+        print('correct result:'+str(int(label)))
         net.addData(data)
         result = net.count()[0,0,0,:]
         j = 0

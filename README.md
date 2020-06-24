@@ -35,4 +35,4 @@ net.addConvLayout([1,1,2,1],bias = True,padding='VAILD',st_func='SIGMOID',init_t
 
 - 运行mnist_visual_test.py可测试mnist数据集
 
-![pic_3](3.JPG)
+![pic_4](4.JPG)
