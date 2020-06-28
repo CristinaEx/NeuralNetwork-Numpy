@@ -64,6 +64,54 @@ class MnistVisualTest(tk.Frame):
 
     def count(self):
         data = self.writeboard_array
+        # 归一化为mnist形式
+        top_y=0
+        down_y=len(data)
+        number = False
+        for i in range(len(data)):
+            useful = False
+            if number:
+                useful = True
+            for j in range(len(data[i])):
+                if data[i][j] > 100:
+                    if number:
+                        useful = False
+                        break
+                    else:
+                        number = not number
+                        top_y = i
+                    break
+            if useful:
+                down_y = i
+                break
+        top_x=0
+        down_x=len(data[0])
+        number = False
+        for i in range(len(data[0])):
+            useful = False
+            if number:
+                useful = True
+            for j in range(len(data)):
+                if data[j][i] > 100:
+                    if number:
+                        useful = False
+                        break
+                    else:
+                        number = not number
+                        top_x = i
+                    break
+            if useful:
+                down_x = i
+                break
+        data = data[top_y:down_y,top_x:down_x]
+        pad_p=0.15
+        if down_y-top_y>down_x-top_x:
+            pad_y = int((down_y-top_y)*pad_p)
+            pad_x = int((down_y-top_y-(down_x-top_x))/2+pad_y)
+        else:
+            pad_x = int((down_x-top_x)*pad_p)
+            pad_y = int((down_x-top_x-(down_y-top_y))/2+pad_x)
+        data = numpy.pad(data,((pad_y,pad_y),(pad_x,pad_x)),'constant')
         im = Image.fromarray(data)
         im = im.convert('L')
         im = im.resize((28,28))
@@ -85,14 +133,16 @@ class MnistVisualTest(tk.Frame):
         self.txt3.set('当前未进行测试')
 
     def paint(self,event):
-        x1,y1 = (event.x - 1), (event.y - 1)
-        x2,y2 = (event.x + 1), (event.y + 1)
+        pad = 13
+        pad_div=int(pad/2)
+        x1,y1 = (event.x - pad_div), (event.y - pad_div)
+        x2,y2 = (event.x + pad_div), (event.y + pad_div)
         item = self.writeboard.create_oval(x1, y1, x2, y2, fill="red")
         self.writeboard_items.append(item)
-        for i in range(7):
-            for j in range(7):
+        for i in range(pad):
+            for j in range(pad):
                 try:
-                    self.writeboard_array[event.y-i+1][event.x-j+1] = 255
+                    self.writeboard_array[event.y-i+pad_div][event.x-j+pad_div] = 255
                 except:
                     pass
 

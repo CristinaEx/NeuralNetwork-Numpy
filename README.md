@@ -1,19 +1,28 @@
 ## NeuralNetwork-Numpy
 ### 模式识别大作业 使用numpy进行深度学习
 
+### 网络核心
+
+- net.py
+- conv.py
+
 ### 使用方法
 ```
 from net import Net
-net = Net()
-net.addData(x)
-net.addConvLayout([1,1,2,1],bias = True,padding='VAILD',st_func='SIGMOID',init_type='RANDOM',loss_type='MSE')
+if not net.load(MODEL_PATH):      
+        net.addConvLayout([3,3,1,4],bias = True,padding='VAILD',init_type=init_type,st_func='LEAKY_RELU_0.01')
+        net.addConvLayout([3,3,4,8],bias = True,padding='VAILD',init_type=init_type,st_func='LEAKY_RELU_0.01')
+        net.addConvLayout([5,5,8,16],bias = True,padding='VAILD',init_type=init_type,st_func='LEAKY_RELU_0.01')
+        net.addConvLayout([5,5,16,32],bias = True,padding='VAILD',init_type=init_type,st_func='LEAKY_RELU_0.01')
+        net.addConvLayout([16,16,32,64],bias = True,padding='VAILD',st_func='SIGMOID',init_type=init_type)
+        net.addConvLayout([1,1,64,10],bias = True,padding='VAILD',st_func='SIGMOID',init_type=init_type)
 ```
 - addData()：添加数据
 - addConvLayout()：在当前网络最后面添加一层网络
   
 支持卷积层，全连接层，平均池化层
 
-激活函数支持sigmoid,leaky_relu
+激活函数支持sigmoid,leaky_relu_alpha,alpha可以为任意值
 
 - regress()：回归
 
@@ -31,8 +40,18 @@ net.addConvLayout([1,1,2,1],bias = True,padding='VAILD',st_func='SIGMOID',init_t
 
 注:输入前需addData()，并count一次
 
-![pic_2](2.JPG)
+### 网络结构输出
+
+![pic_2](3.JPG)
+
+### mnist可视化输出
 
 - 运行mnist_visual_test.py可测试mnist数据集
 
-![pic_4](4.JPG)
+- model文件夹内为mnist训练的模型，最新的模型只在batch_size=30的情况下训练了400次，我们在测试集上测试准确率达到了:95.38%
+
+![pic_3](7.JPG)
+
+![pic_3](8.JPG)
+
+![pic_3](6.JPG)

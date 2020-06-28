@@ -153,10 +153,13 @@ class Net:
         self.count() # 更新权值
         if regress_type == 'SGD':
             now_layout = self.conv_layout[-1] # 当前layout
+            # -------------------------经过损失函数传播loss---------------------------------
             if loss_type == 'CE':
-                loss = (-label/(now_layout+0.000000001)+(1-label)/(1-now_layout+0.000000001))
+                min_error = 0.000000001
+                loss = (-label/(now_layout+min_error)+(1-label)/(1-now_layout+min_error))
             else:
-                loss = 2*(now_layout-label) # loss = d_loss/d_st_func_out_put
+                loss = 2*(now_layout-label) # loss = d_loss/
+            # -------------------------------------------------------------------------------
             for i in range(1,len(self.conv_layout)+1):
                 now_layout = self.conv_layout[-i] # 当前layout
                 if i == len(self.conv_layout):
@@ -166,12 +169,13 @@ class Net:
                 batch_size,h,w,channel = last_layout.shape
                 fh,fw,channel_in,channel_out = self.conv_filter[-i].shape # 当前filter
                 # true_layout = st_func^(-1)(label)
-                # 经过激活函数传播loss
+                # ---------------------经过激活函数传播loss------------------------
                 if self.st_func[-i] == 'SIGMOID':
                     loss = loss*self.__sigmoid_loss(now_layout)# loss = (d_loss/d_st_func_out_put) * (d_st_func_out_put/d_hidden_output) = d_loss/d_hidden_output
                 elif self.st_func[-i][0:10] == 'LEAKY_RELU':
                     alpha = float(self.st_func[-i][11:])
                     loss = loss*self.__leakyRelu_loss(now_layout,alpha)
+                # -----------------------------------------------------------------
                 # 注:d_hidden_output/dw = data
                 # 进行随机梯度下降更新权值
                 data = last_layout
@@ -189,6 +193,7 @@ class Net:
                 if bias:
                     bias_loss = numpy.zeros(self.conv_bias[-i].shape)
                 [lb,lh,lw,lc] = loss.shape
+                # --------------------------随机梯度下降------------------------------
                 x0 = numpy.random.randint(lh,size=SGD_NUM)
                 y0 = numpy.random.randint(lw,size=SGD_NUM)
                 K = learning_rate/SGD_NUM/batch_size
@@ -200,6 +205,7 @@ class Net:
                             filter_loss[:,:,:,ch] = filter_loss[:,:,:,ch] + loss[b,x,y,ch] * data[b,x:x+fh,y:y+fw,:]*K
                             if bias:
                                 bias_loss[ch] = loss[b,x,y,ch]*K
+                # ------------------------------------------------------------------
                 loss = deconv2d(loss,self.conv_filter[-i],self.strides[-i],self.padding[-i]) # 更新loss
 
                 # 更新后的卷积算子权值
