@@ -52,6 +52,6 @@ if not net.load(MODEL_PATH):
 
 ![pic_3](7.JPG)
 
-![pic_3](8.JPG)
+![pic_4](8.JPG)
 
-![pic_3](6.JPG)
+![pic_5](6.JPG)
