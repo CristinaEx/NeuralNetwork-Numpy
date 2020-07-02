@@ -8,7 +8,8 @@
 
 ### 使用方法
 ```
-from net import Net
+from net import ConvNet
+net = ConvNet()
 if not net.load(MODEL_PATH):      
         net.addConvLayout([3,3,1,4],bias = True,padding='VAILD',init_type=init_type,st_func='LEAKY_RELU_0.01')
         net.addConvLayout([3,3,4,8],bias = True,padding='VAILD',init_type=init_type,st_func='LEAKY_RELU_0.01')
@@ -20,13 +21,14 @@ if not net.load(MODEL_PATH):
 - addData()：添加数据
 - addConvLayout()：在当前网络最后面添加一层网络
   
-支持卷积层，全连接层，平均池化层
+支持卷积层，全连接层，Batch Normalization层
 
 激活函数支持sigmoid,leaky_relu_alpha,alpha可以为任意值
 
 - regress()：回归
 
 支持MSE和交叉熵
+支持多种优化器（SGD,Nesterov,RMSProp）
 
 - count()：计算各层输出
 - save()：保存权值

@@ -1,5 +1,5 @@
 from mnist_load import *
-from net import Net
+from net import *
 from mnist_train import MODEL_PATH
 import random
 import numpy
@@ -7,7 +7,7 @@ import numpy
 if __name__ == '__main__':
     test_images = load_test_images()
     test_labels = load_test_labels()
-    net = Net()
+    net = ConvNet()
     net.load(MODEL_PATH)
     batch_num = 100
     correct_num = 0

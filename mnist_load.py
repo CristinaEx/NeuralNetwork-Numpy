@@ -1,4 +1,4 @@
-import numpy as np
+import numpy
 import struct
 import matplotlib.pyplot as plt
 
@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 train_images_idx3_ubyte_file = 'MNIST_data/train-images.idx3-ubyte'
 # 训练集标签文件
 train_labels_idx1_ubyte_file = 'MNIST_data/train-labels.idx1-ubyte'
-
 # 测试集文件
 test_images_idx3_ubyte_file = 'MNIST_data/t10k-images.idx3-ubyte'
 # 测试集标签文件
@@ -34,13 +33,13 @@ def decode_idx3_ubyte(idx3_ubyte_file):
     print(offset)
     fmt_image = '>' + str(image_size) + 'B'  #图像数据像素值的类型为unsigned char型，对应的format格式为B。这里还有加上图像大小784，是为了读取784个B格式数据，如果没有则只会读取一个值（即一副图像中的一个像素值）
     print(fmt_image,offset,struct.calcsize(fmt_image))
-    images = np.empty((num_images, num_rows, num_cols))
+    images = numpy.empty((num_images, num_rows, num_cols))
     #plt.figure()
     for i in range(num_images):
         if (i + 1) % 10000 == 0:
             print('已解析 %d' % (i + 1) + '张')
             print(offset)
-        images[i] = np.array(struct.unpack_from(fmt_image, bin_data, offset)).reshape((num_rows, num_cols))
+        images[i] = numpy.array(struct.unpack_from(fmt_image, bin_data, offset)).reshape((num_rows, num_cols))
         #print(images[i])
         offset += struct.calcsize(fmt_image)
 #        plt.imshow(images[i],'gray')
@@ -69,7 +68,7 @@ def decode_idx1_ubyte(idx1_ubyte_file):
     # 解析数据集
     offset += struct.calcsize(fmt_header)
     fmt_image = '>B'
-    labels = np.empty(num_images)
+    labels = numpy.empty(num_images)
     for i in range(num_images):
         if (i + 1) % 10000 == 0:
             print ('已解析 %d' % (i + 1) + '张')

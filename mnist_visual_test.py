@@ -1,7 +1,7 @@
 import tkinter as tk
 from PIL import Image,ImageTk
 from mnist_load import *
-from net import Net
+from net import *
 from mnist_train import MODEL_PATH
 import random
 import numpy
@@ -14,7 +14,7 @@ class MnistVisualTest(tk.Frame):
         self.create_widgets()
         self.test_images = load_test_images()
         self.test_labels = load_test_labels()
-        self.net = Net()
+        self.net = ConvNet()
         self.net.load(MODEL_PATH)
 
         self.writeboard_items = []

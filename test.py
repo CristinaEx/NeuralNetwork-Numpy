@@ -1,7 +1,7 @@
 import numpy
 import matplotlib.pyplot as plt
 import math
-from net import Net
+from net import *
 
 # 生成符合正态分布的初始数据
 # batch_size = 100,shape = (2,)
@@ -19,7 +19,7 @@ for i in range(batch_size):
     plt.plot(x[i,0,0,0],x[i,0,0,1],color)
 plt.show()
 plt.figure(2)
-net = Net()
+net = ConvNet()
 net.addData(x)
 net.addConvLayout([1,1,2,1],bias = True,padding='VAILD',st_func='SIGMOID',init_type='RANDOM')
 print(net)

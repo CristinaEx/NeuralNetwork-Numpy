@@ -32,7 +32,7 @@ def train():
     it_num = 10 # 每次迭代次数
     init_type = 'RANDOM'
 
-    net = Net()
+    net = ConvNet()
     if not net.load(MODEL_PATH):      
         net.addConvLayout([3,3,1,4],bias = True,padding='VAILD',init_type=init_type,st_func='LEAKY_RELU_0.01')
         net.addConvLayout([3,3,4,8],bias = True,padding='VAILD',init_type=init_type,st_func='LEAKY_RELU_0.01')
@@ -55,7 +55,7 @@ def train():
             loss = sum(sum(sum(sum(abs(net.count()-label)))))/batch_size
             # print(net.conv_filter[0][:,:,0,0])
             print(loss)
-            net.regress(learning_rate,label,regress_type='SGD',loss_type = 'CE')  # 交叉熵
+            net.regress(learning_rate,label,regress_type='NESTEROV',loss_type = 'CE')  # 交叉熵
         print('saving...')
         net.save(MODEL_PATH)
         print('finish!') 
@@ -72,7 +72,7 @@ def test():
 
     test_num = 10
 
-    net = Net()
+    net = ConvNet()
     net.load(MODEL_PATH)
 
     for i in range(test_num):

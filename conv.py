@@ -5,7 +5,6 @@ def conv2d(data,filter,strides=[1,1],padding='SAME'):
     """
     data:数据[batch_size,h,w,channel]
     filter:卷积算子[h,w,channel_in,channel_out]
-    filter的w,h维度是颠倒的，可以修改，但没必要，还省时间
     strides:步长[dh,dw]
     padding:'VAILD' or 'SAME'
     """

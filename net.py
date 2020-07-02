@@ -5,20 +5,159 @@ from os import mkdir
 from os.path import isdir,dirname,isfile
 
 class MainNet:
+    # 多重网络
     def __init__(self,net):
         """
         net:第一个网络
         """
-        nets = [net] # 网络
+        self.nets = [net] # 网络
         pass
 
-    def addNet(self,net,lastNetPos=[0,0]):
+    def addNet(self,net):
         """
-        该网络在上一级网络的位置,比如net的输入[w,h,mod]在目前nets最后进入的网络的[w_pos,h_pos],默认为[0,0]
+        添加网络，接入当前网络最后一级
         """
+        self.nets.append(net)
+
+    def addData(self,data):
+        """
+        向所有网络添加数据
+        """
+        for net in self.nets:
+            net.addData(data)
+            data = net.count()
+
+    def count(self):
+        """
+        返回最后一层输出
+        """
+        return self.nets[-1].count()
+
+class BNNet:
+    # Batch Normalization
+    def __init__(self):
+        self.data = None # 输入[batch_size,w,h,mod]
         pass
 
-class Net:
+    def addData(self,data):
+        """
+        添加数据[batch_size,w,h,mod]
+        """
+        self.data = data
+        self.u = None
+        self.o = None
+
+    def count(self):
+        # self.data = [batch_size,w,h,mod]
+        batch_size,w,h,mod = self.data.shape
+        self.u = numpy.sum(self.data)/(batch_size*w*h*mod)
+        self.o = numpy.sum(((self.data-self.u)**2)/(batch_size*w*h*mod))**(1/2)
+        return (self.data-self.u)/self.o
+
+class Nesterov:
+    def __init__(self):
+        self.v = [] # 初始速度 为0
+        self.alpha = 0.5 # 动量参数 v<-alpha*v+Loss
+        self.layout_index = 0 # 从后到前的layout
+        # filter <- filter - v
+        # filter_loss = v
+
+    def regress(self,loss,data,conv_filter,conv_bias,strides,padding,learning_rate):
+        """
+        进行随机梯度下降
+        loss:经过激活函数传递上来的损失值
+        data:上一层参数
+        conv_filter:算子
+        conv_bias:偏置项
+        st_func(conv2d(data,filter)) = now_layout
+        strides:[dy,dx]步长
+        learning_rate:学习率
+        返回filter_loss,bias_loss
+        """
+        fh,fw,channel_in,channel_out = conv_filter.shape # 当前filter
+        [batch_size,m,n,channel_out] = loss.shape
+
+        if len(self.v) <= self.layout_index:
+            # 添加初始动量
+            self.v.append(numpy.zeros([fh,fw,channel_in,channel_out]))
+        conv_filter_new = conv_filter - self.alpha * self.v[self.layout_index]
+        loss_new = deconv2d(loss,conv_filter_new,strides,padding) # 针对data的loss
+        data_new = data - loss_new
+        # [fh,fw,channel_in] .* [fh,fw,channel_in,channel_out] = [1,1,channel_out] 
+        # [fh,fw,channel_in,cho] = [fh,fw,channel_in] * [1,1,cho] .* learning_rate / filter_size
+        filter_loss = numpy.zeros(conv_filter.shape)
+        bias_loss = numpy.zeros(conv_bias.shape)
+        [lb,lh,lw,lc] = loss.shape
+        K = learning_rate/batch_size
+        for b in range(batch_size):
+            for x in range(lh):
+                x = x*strides[0]
+                for y in range(lw):
+                    y = y*strides[1]
+                    for ch in range(channel_out):
+                        filter_loss[:,:,:,ch] = filter_loss[:,:,:,ch] + loss[b,x,y,ch] * data_new[b,x:x+fh,y:y+fw,:]*K
+                        bias_loss[ch] = loss[b,x,y,ch]*K
+        self.v[self.layout_index] = self.v[self.layout_index]*self.alpha+filter_loss               
+        filter_loss = self.v[self.layout_index]
+        self.layout_index = self.layout_index + 1 # 下一层
+        return filter_loss,bias_loss,loss_new
+
+    def __str__(self):
+        return 'NESTEROV'
+
+    def reinit(self):
+        """
+        每次优化时初始化
+        """
+        self.layout_index = 0
+        
+
+class SGD:
+    def __init__(self):
+        self.SGD_K = 0.1 # 随机抽取其中的0.1倍进行回归
+
+    def regress(self,loss,data,conv_filter,conv_bias,strides,padding,learning_rate):
+        """
+        进行随机梯度下降
+        loss:经过激活函数传递上来的损失值
+        data:上一层参数
+        conv_filter:算子
+        conv_bias:偏置项
+        st_func(conv2d(data,filter)) = now_layout
+        strides:[dy,dx]步长
+        learning_rate:学习率
+        padding:补位方式
+        返回filter_loss,bias_loss
+        """
+        fh,fw,channel_in,channel_out = conv_filter.shape # 当前filter
+        [batch_size,m,n,channel_out] = loss.shape
+        SGD_NUM = ceil(m*n*self.SGD_K) # 每个batch抽取SGD_NUM个区域进行回归,每个区域大小为[fh,fw,channel_in]
+        # [fh,fw,channel_in] .* [fh,fw,channel_in,channel_out] = [1,1,channel_out] 
+        # [fh,fw,channel_in,cho] = [fh,fw,channel_in] * [1,1,cho] .* learning_rate / filter_size
+        filter_loss = numpy.zeros(conv_filter.shape)
+        bias_loss = numpy.zeros(conv_bias.shape)
+        [lb,lh,lw,lc] = loss.shape
+        x0 = numpy.random.randint(lh,size=SGD_NUM)
+        y0 = numpy.random.randint(lw,size=SGD_NUM)
+        K = learning_rate/SGD_NUM/batch_size
+        for b in range(batch_size):
+            for j in range(SGD_NUM):
+                x = x0[j]*strides[0]
+                y = y0[j]*strides[1]
+                for ch in range(channel_out):
+                    filter_loss[:,:,:,ch] = filter_loss[:,:,:,ch] + loss[b,x,y,ch] * data[b,x:x+fh,y:y+fw,:]*K
+                    bias_loss[ch] = loss[b,x,y,ch]*K
+        loss = deconv2d(loss,conv_filter,strides,padding) # 更新loss
+        return filter_loss,bias_loss,loss
+
+    def __str__(self):
+        return 'SGD'
+
+    def reinit(self):
+        pass
+
+class ConvNet:
+    # 全卷积神经网络
     def __init__(self):
         self.data = None # 输入[batch_size,w,h,mod]
         self.conv_layout = [] # 卷积层
@@ -27,6 +166,7 @@ class Net:
         self.st_func = [] # 每层网络对应激活函数
         self.padding = [] # 每层网络对应padding方式
         self.strides = [] # 每层网络卷积核对应步长
+        self.regress_tool = SGD() # 默认SGD
         
 
     def addData(self,data):
@@ -144,74 +284,63 @@ class Net:
 
     def regress(self,learning_rate,label,regress_type='SGD',loss_type='MSE'):
         """
-        后向传播，仅支持随机梯度下降
+        后向传播
         learing_rate:学习率
         label:最后一层的标准输出
-        权值更新速率正比于learning_rate
+        regress_type:回归类型(SGD:随机梯度下降...)
         loss_type:MSE or CE(交叉熵)
+        返回第一层的loss(反向传播到第一层)
         """
         self.count() # 更新权值
-        if regress_type == 'SGD':
-            now_layout = self.conv_layout[-1] # 当前layout
-            # -------------------------经过损失函数传播loss---------------------------------
-            if loss_type == 'CE':
-                min_error = 0.000000001
-                loss = (-label/(now_layout+min_error)+(1-label)/(1-now_layout+min_error))
-            else:
-                loss = 2*(now_layout-label) # loss = d_loss/
-            # -------------------------------------------------------------------------------
-            for i in range(1,len(self.conv_layout)+1):
-                now_layout = self.conv_layout[-i] # 当前layout
-                if i == len(self.conv_layout):
-                    last_layout = self.data
-                else:
-                    last_layout = self.conv_layout[-i-1]
-                batch_size,h,w,channel = last_layout.shape
-                fh,fw,channel_in,channel_out = self.conv_filter[-i].shape # 当前filter
-                # true_layout = st_func^(-1)(label)
-                # ---------------------经过激活函数传播loss------------------------
-                if self.st_func[-i] == 'SIGMOID':
-                    loss = loss*self.__sigmoid_loss(now_layout)# loss = (d_loss/d_st_func_out_put) * (d_st_func_out_put/d_hidden_output) = d_loss/d_hidden_output
-                elif self.st_func[-i][0:10] == 'LEAKY_RELU':
-                    alpha = float(self.st_func[-i][11:])
-                    loss = loss*self.__leakyRelu_loss(now_layout,alpha)
-                # -----------------------------------------------------------------
-                # 注:d_hidden_output/dw = data
-                # 进行随机梯度下降更新权值
-                data = last_layout
-                if self.padding[-i] == 'SAME':
-                    data = numpy.pad(data,((0,0),(floor(fh/2),floor(fh/2)),(floor(fw/2),floor(fw/2)),(0,0)),'constant')
-                # conv(data,filter[-1],strides,'VAILD') = now_layout
-                # filter[-1] = filter[-1]-sum(```在batch_size维度上累加```learning_rate*loss*data[batch_size,x0:x0+fw,y0:y0+fh,:]/filter_size)
-                SGD_K = 0.1 # 随机抽取其中的0.1倍进行回归
-                [batch_size,m,n,channel_out] = loss.shape
-                SGD_NUM = ceil(m*n*SGD_K) # 每个batch抽取SGD_NUM个区域进行回归,每个区域大小为[fh,fw,channel_in]
-                # [fh,fw,channel_in] .* [fh,fw,channel_in,channel_out] = [1,1,channel_out] 
-                # [fh,fw,channel_in,cho] = [fh,fw,channel_in] * [1,1,cho] .* learning_rate / filter_size
-                filter_loss = numpy.zeros(self.conv_filter[-i].shape)
-                bias = not len(self.conv_bias[-i]) == 0
-                if bias:
-                    bias_loss = numpy.zeros(self.conv_bias[-i].shape)
-                [lb,lh,lw,lc] = loss.shape
-                # --------------------------随机梯度下降------------------------------
-                x0 = numpy.random.randint(lh,size=SGD_NUM)
-                y0 = numpy.random.randint(lw,size=SGD_NUM)
-                K = learning_rate/SGD_NUM/batch_size
-                for b in range(batch_size):
-                    for j in range(SGD_NUM):
-                        x = x0[j]*self.strides[-i][0]
-                        y = y0[j]*self.strides[-i][0]
-                        for ch in range(channel_out):
-                            filter_loss[:,:,:,ch] = filter_loss[:,:,:,ch] + loss[b,x,y,ch] * data[b,x:x+fh,y:y+fw,:]*K
-                            if bias:
-                                bias_loss[ch] = loss[b,x,y,ch]*K
-                # ------------------------------------------------------------------
-                loss = deconv2d(loss,self.conv_filter[-i],self.strides[-i],self.padding[-i]) # 更新loss
+        # 更换优化器
+        if not str(self.regress_tool) == regress_type:
+            # print('CHANGE REGRESS TYPE')
+            if regress_type == 'SGD':
+                self.regress_tool = SGD()
+            elif regress_type == 'NESTEROV':
+                self.regress_tool = Nesterov()
+        self.regress_tool.reinit()
 
-                # 更新后的卷积算子权值
-                self.conv_filter[-i] = self.conv_filter[-i] - filter_loss
-                if bias:
-                    self.conv_bias[-i] = self.conv_bias[-i] - bias_loss
+        now_layout = self.conv_layout[-1] # 当前layout
+        # -------------------------经过损失函数传播loss---------------------------------
+        if loss_type == 'CE':
+            min_error = 0.000000001
+            loss = (-label/(now_layout+min_error)+(1-label)/(1-now_layout+min_error))
+        else:
+            # MSE
+            loss = 2*(now_layout-label) # loss = d_loss/
+        # -------------------------------------------------------------------------------
+        for i in range(1,len(self.conv_layout)+1):
+            now_layout = self.conv_layout[-i] # 当前layout
+            if i == len(self.conv_layout):
+                last_layout = self.data
+            else:
+                last_layout = self.conv_layout[-i-1]
+            batch_size,h,w,channel = last_layout.shape
+            fh,fw,channel_in,channel_out = self.conv_filter[-i].shape # 当前filter
+            # true_layout = st_func^(-1)(label)
+            # ---------------------经过激活函数传播loss------------------------
+            if self.st_func[-i] == 'SIGMOID':
+                loss = loss*self.__sigmoid_loss(now_layout)# loss = (d_loss/d_st_func_out_put) * (d_st_func_out_put/d_hidden_output) = d_loss/d_hidden_output
+            elif self.st_func[-i][0:10] == 'LEAKY_RELU':
+                alpha = float(self.st_func[-i][11:])
+                loss = loss*self.__leakyRelu_loss(now_layout,alpha)
+            # -----------------------------------------------------------------
+            # 注:d_hidden_output/dw = data
+            # 进行随机梯度下降更新权值
+            data = last_layout
+            if self.padding[-i] == 'SAME':
+                data = numpy.pad(data,((0,0),(floor(fh/2),floor(fh/2)),(floor(fw/2),floor(fw/2)),(0,0)),'constant')
+            # conv(data,filter[-1],strides,'VAILD') = now_layout
+            # filter[-1] = filter[-1]-sum(```在batch_size维度上累加```learning_rate*loss*data[batch_size,x0:x0+fw,y0:y0+fh,:]/filter_size)
+            # --------------------------梯度下降------------------------------
+            filter_loss,bias_loss,loss = self.regress_tool.regress(loss,data,self.conv_filter[-i],self.conv_bias[-i],self.strides[-i],self.padding[-i],learning_rate)              
+            # ------------------------------------------------------------------
+            # 更新后的卷积算子权值
+            self.conv_filter[-i] = self.conv_filter[-i] - filter_loss
+            if not len(self.conv_bias[-i]) == 0:
+                self.conv_bias[-i] = self.conv_bias[-i] - bias_loss
+        return loss
 
     def count(self):
         """
@@ -253,7 +382,7 @@ class Net:
         return result
 
 if __name__ == '__main__':
-    net = Net()
+    net = ConvNet()
     net.addData(numpy.ones([10,28,28,1]))
     net.addConvLayout([3,3,1,8],bias = None,init_type='RANDOM',st_func='LEAKY_RELU_0.02')
     net.addConvLayout([3,3,8,16],bias = None,init_type='RANDOM',st_func='LEAKY_RELU_0.02')
