@@ -40,12 +40,11 @@ if not net.load(MODEL_PATH):
 
 ![pic_1](1.JPG)
 
+### 网络结构输出
+
 - print(net) 输出网络结构
 
-
 注:输入前需addData()，并count一次
-
-### 网络结构输出
 
 ![pic_2](3.JPG)
 
@@ -53,7 +52,7 @@ if not net.load(MODEL_PATH):
 
 - 运行mnist_visual_test.py可测试mnist数据集
 
-- model文件夹内为mnist训练的模型，最新的模型只在batch_size=30的情况下训练了400次，我们在测试集上测试准确率达到了:95.38%
+- model文件夹内为mnist训练的模型，最新的模型只在batch_size=30的情况下训练了400次，我们在测试集上测试准确率达到了:95.38%。使用的模型结构如上图所示，4层卷积层+2层全连接层。
 
 ![pic_3](7.JPG)
 
