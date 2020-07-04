@@ -3,7 +3,7 @@ from net import *
 import random
 
 MODEL_PATH_OLD = 'model_old\\3_3+3_3+5_5+connect\\model_200\\model.dat'
-MODEL_PATH = 'model\\model.dat'
+MODEL_PATH = 'model_test\\model.dat'
 
 def num2oneHot(nums,len_):
     """
@@ -55,7 +55,7 @@ def train():
             loss = sum(sum(sum(sum(abs(net.count()-label)))))/batch_size
             # print(net.conv_filter[0][:,:,0,0])
             print(loss)
-            net.regress(learning_rate,label,regress_type='NESTEROV',loss_type = 'CE')  # 交叉熵
+            net.regress(learning_rate,label,regress_type='SGD',loss_type = 'CE')  # 交叉熵
         print('saving...')
         net.save(MODEL_PATH)
         print('finish!') 

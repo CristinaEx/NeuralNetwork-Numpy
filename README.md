@@ -33,6 +33,9 @@ if not net.load(MODEL_PATH):
 - count()：计算各层输出
 - save()：保存权值
 - load()：读取权值
+
+### 运行mnist_train体验训练
+
 ### test.py的可视化输出
 
 ![pic_1](1.JPG)
@@ -57,3 +60,5 @@ if not net.load(MODEL_PATH):
 ![pic_4](8.JPG)
 
 ![pic_5](6.JPG)
+
+### 运行main.ipynb进行个性化测试

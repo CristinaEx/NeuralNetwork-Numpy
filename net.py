@@ -54,6 +54,63 @@ class BNNet:
         self.o = numpy.sum(((self.data-self.u)**2)/(batch_size*w*h*mod))**(1/2)
         return (self.data-self.u)/self.o
 
+class RMSProp:
+    def __init__(self):
+        self.r = [] # 累积平方梯度
+        self.ro = 0.5 # 衰减速率
+        self.min_error = 0.000001 # 小常数
+        self.layout_index = 0 # 从后到前的layout
+        # filter <- filter - v
+        # filter_loss = v
+
+    def regress(self,loss,data,conv_filter,conv_bias,strides,padding,learning_rate):
+        """
+        进行梯度下降
+        loss:经过激活函数传递上来的损失值
+        data:上一层参数
+        conv_filter:算子
+        conv_bias:偏置项
+        st_func(conv2d(data,filter)) = now_layout
+        strides:[dy,dx]步长
+        learning_rate:学习率
+        返回filter_loss,bias_loss
+        """
+        fh,fw,channel_in,channel_out = conv_filter.shape # 当前filter
+        [batch_size,m,n,channel_out] = loss.shape
+
+        if len(self.r) <= self.layout_index:
+            # 添加初始累积平方梯度
+            self.r.append(numpy.zeros([fh,fw,channel_in,channel_out]))
+        # [fh,fw,channel_in] .* [fh,fw,channel_in,channel_out] = [1,1,channel_out] 
+        # [fh,fw,channel_in,cho] = [fh,fw,channel_in] * [1,1,cho] .* learning_rate / filter_size
+        filter_loss = numpy.zeros(conv_filter.shape)
+        bias_loss = numpy.zeros(conv_bias.shape)
+        [lb,lh,lw,lc] = loss.shape
+        K = learning_rate/batch_size
+        for b in range(batch_size):
+            for x in range(lh):
+                x = x*strides[0]
+                for y in range(lw):
+                    y = y*strides[1]
+                    for ch in range(channel_out):
+                        filter_loss[:,:,:,ch] = filter_loss[:,:,:,ch] + loss[b,x,y,ch] * data[b,x:x+fh,y:y+fw,:]*K
+                        bias_loss[ch] = loss[b,x,y,ch]*K
+        # 更新累积梯度
+        self.r[self.layout_index] = self.r[self.layout_index] * self.ro + (1-self.ro)*filter_loss*filter_loss;    
+        loss = deconv2d(loss,conv_filter,strides,padding) # 更新loss           
+        filter_loss = filter_loss/numpy.sqrt(self.r[self.layout_index]+self.min_error)
+        self.layout_index = self.layout_index + 1 # 下一层
+        return filter_loss,bias_loss,loss
+
+    def __str__(self):
+        return 'RMSPROP'
+
+    def reinit(self):
+        """
+        每次优化时初始化
+        """
+        self.layout_index = 0
+
 class Nesterov:
     def __init__(self):
         self.v = [] # 初始速度 为0
@@ -64,7 +121,7 @@ class Nesterov:
 
     def regress(self,loss,data,conv_filter,conv_bias,strides,padding,learning_rate):
         """
-        进行随机梯度下降
+        进行梯度下降
         loss:经过激活函数传递上来的损失值
         data:上一层参数
         conv_filter:算子
@@ -299,6 +356,8 @@ class ConvNet:
                 self.regress_tool = SGD()
             elif regress_type == 'NESTEROV':
                 self.regress_tool = Nesterov()
+            elif regress_type == 'RMSPROP':
+                self.regress_tool = RMSProp()
         self.regress_tool.reinit()
 
         now_layout = self.conv_layout[-1] # 当前layout
