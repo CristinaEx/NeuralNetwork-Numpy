@@ -1,12 +1,16 @@
 ## NeuralNetwork-Numpy
 ### 模式识别大作业 使用numpy进行深度学习
 
+- 大作业内容请参照 main.ipynb
+
 ### 网络核心
 
 - net.py
 - conv.py
 
 ### 使用方法
+- 定义网络
+
 ```
 from net import ConvNet
 net = ConvNet()
