@@ -37,6 +37,9 @@ class BNNet:
     # Batch Normalization
     def __init__(self):
         self.data = None # 输入[batch_size,w,h,mod]
+        self.gamma = 1
+        self.beta = 0
+        self.min_error = 1e-8
         pass
 
     def addData(self,data):
@@ -50,9 +53,25 @@ class BNNet:
     def count(self):
         # self.data = [batch_size,w,h,mod]
         batch_size,w,h,mod = self.data.shape
-        self.u = numpy.sum(self.data)/(batch_size*w*h*mod)
-        self.o = numpy.sum(((self.data-self.u)**2)/(batch_size*w*h*mod))**(1/2)
-        return (self.data-self.u)/self.o
+        self.u = numpy.mean(self.data,axis=0) # shape:[w,h,mod]
+        self.o = numpy.var(self.data,axis=0) # shape:[batch_size,w,h,mod]
+        self.norm = (self.data-self.u)/self.o
+        return self.norm*self.gamma+self.beta
+
+    def backward(self,loss,learning_rate): 
+        batch_size,w,h,mod = numpy.shape(self.data)
+
+        X_mu = self.data-self.u
+        std_inv = 1/numpy.sqrt(self.o+self.min_error)
+        dX_norm = loss*self.gamma
+        dvar = numpy.sum(dX_norm*X_mu,axis=0)*(-0.5)*std_inv**3
+        dmu = numpy.sum(dX_norm*-std_inv,axis=0)+dvar*numpy.mean(-2*X_mu,axis=0)
+
+        dX = dX_norm*std_inv+dvar*2*X_mu/batch_size+dmu/batch_size
+        dgamma = numpy.sum(loss*self.norm,axis=0)
+        dbeta = numpy.sum(loss,axis=0)
+
+        return dX,dgamma,dbeta
 
 class RMSProp:
     def __init__(self):
